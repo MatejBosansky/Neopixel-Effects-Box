@@ -7,6 +7,7 @@
 #include <Adafruit_ST7735.h> // Hardware-specific library
 #include <SPI.h>
 #include "arduinoFFT.h"
+#include <Encoder.h>
 #include <FastLED.h>
 //https://github.com/FastLED/FastLED/wiki/Pixel-reference
 
@@ -14,7 +15,7 @@
 //strip define
 #define PIN RX //Neopixel data pin num
 #define PixNum 295 //Count of pixels
-#define MaxBright 150 // 1 - 255 in order to optimize power consuption you can reduc max possible brightness
+#define MaxBright 150 // 1 - 255 in order to optimize power consuption you can reduce max possible brightness
 
 //Define Audion analog reader pin
 #define AudioPin A0
@@ -23,6 +24,7 @@
 #define RotaryCLK D4 //clk
 #define RotaryDT D1 //DT
 #define RotaryBTN D3 //MS
+Encoder myEnc(RotaryCLK, RotaryDT);
 
 //Display define
 #define TFT_CS     D8
@@ -35,15 +37,16 @@
 // to use the microSD card (see the image drawing example)
 
 
-void RotaryChange();
+
 void RotaryPush();
+void RotaryChangeCheck();
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 
 int MaxBrightness = MaxBright; //* define on start
 int MaxStripLength = PixNum; //* define on start
-int Change = 0; //flag for interrupt trigger /0 No change /-1 Rotary down / +1 rotary up / 2 button
+long Change = 0; //flag for interrupt trigger /0 No change /-1 Rotary down / +1 rotary up / 2 button
 
 CRGBArray<PixNum> np;
 
@@ -69,7 +72,7 @@ public:
 		this->step = step;
 	}
 	void StepChange(int type) {
-		//type - true - increment, false vice versa
+		//type : +1 - increment, -1 vice versa
 		if (type == 1) {
 			if (val + step <= max)
 				val += step;
@@ -120,7 +123,7 @@ int SetMenu()
 
 	//Definning
 	Menu.Effects[0].Parameters[0].SetVals("<< UP", 1, 1, 1, 1);
-	Menu.Effects[0].Parameters[1].SetVals("Speed", 50, 0, 1000, 5); //Name, Default value, Minimal value, Maximal value, Step value
+	Menu.Effects[0].Parameters[1].SetVals("Loop time[ms]", 50, 0, 1000, 5); //Name, Default value, Minimal value, Maximal value, Step value
 	Menu.Effects[0].Parameters[2].SetVals("Brightness", 60, 1, MaxBrightness, 3);
 	Menu.Effects[0].Parameters[3].SetVals("Strip Length", MaxStripLength, 1, MaxStripLength, 1);
 	Menu.Effects[0].Parameters[4].SetVals("Snake Length", 10, 1, MaxStripLength - 1, 1);
@@ -128,7 +131,7 @@ int SetMenu()
 	Menu.Effects[0].ParametersNum = 5;
 
 	Menu.Effects[1].Parameters[0].SetVals("<< UP", 1, 1, 1, 1);
-	Menu.Effects[1].Parameters[1].SetVals("Speed", 50, 0, 1000, 5); //Name, Default value, Minimal value, Maximal value, Step value
+	Menu.Effects[1].Parameters[1].SetVals("Loop time[ms]", 50, 0, 1000, 5); //Name, Default value, Minimal value, Maximal value, Step value
 	Menu.Effects[1].Parameters[2].SetVals("Brightness", 50, 1, MaxBrightness, 3);
 	Menu.Effects[1].Parameters[3].SetVals("Min Bright", Menu.Effects[1].Parameters[2].val/2, 1, MaxBrightness-1, 3);
 	Menu.Effects[1].Parameters[4].SetVals("Strip Length", MaxStripLength - 1, 1, MaxStripLength, 1);
@@ -138,7 +141,7 @@ int SetMenu()
 	Menu.Effects[1].ParametersNum = 7; //-1
 
 	Menu.Effects[2].Parameters[0].SetVals("<< UP",1,1,1,1); 
-	Menu.Effects[2].Parameters[1].SetVals("Speed", 50, 0, 1000, 5); //Name, Default value, Minimal value, Maximal value, Step value
+	Menu.Effects[2].Parameters[1].SetVals("Loop time[ms]", 50, 0, 1000, 5); //Name, Default value, Minimal value, Maximal value, Step value
 	Menu.Effects[2].Parameters[2].SetVals("Brightness", 70, 1, MaxBrightness, 3);
 	Menu.Effects[2].Parameters[3].SetVals("Strip Length", MaxStripLength, 1, MaxStripLength, 1);
 	Menu.Effects[2].Parameters[4].SetVals("Snake Length", 10, 1, MaxStripLength - 1, 1);
@@ -163,8 +166,8 @@ int SetMenu()
 }
 
 //in this function is processed every rotary push/change + updated display
-//as argument use Change variable -1 rotary down, 1 rotary up, 2 push
-//also consider MenuPosition value
+//as argument using Change variable -1 rotary down, 1 rotary up, 2 push
+//also considering MenuPosition value
 void PrintDisplay() {
 	uint16 GreyColor = 0xC618;
 	Serial.print("Running Change ");
@@ -267,7 +270,7 @@ void PrintDisplay() {
 		break;
 	}
 
-	Change = 0;
+	myEnc.write(0);
 }
 
 
@@ -276,7 +279,7 @@ void PrintDisplay() {
 
 
 float CurrentSnakeColor[3];
-int *SnakeValues = new int[MaxStripLength]; //calculated values for snake to avoid same calculations in every loop, used in 2 snake effects
+int *SnakeValues = new int[MaxStripLength]; //calculated values for snake to avoid same calculations in every loop, used in both snake effects
 
 void Snakes_SetColor();
 void SnakesSet() { //**5. Define setup function for effect same like here
@@ -294,7 +297,7 @@ int SnakeCounter = 1;
 int GapCounter = 0;
 
 	while (MenuPosition.CurrentEffect == 0) { //**6. code inside loop function must be wrapped by while loop watching current effect
-		memmove(&np[1], &np[0], (Menu.Effects[0].Parameters[3].val - 1) * sizeof(CRGB)); //same as before but faster
+		memmove(&np[1], &np[0], (Menu.Effects[0].Parameters[3].val - 1) * sizeof(CRGB));
 
 		//Checking current length and Brightness, if a same are used in SnakeValues
 		if ((SnakeValues[0] != Menu.Effects[0].Parameters[4].val) || (SnakeValues[1] != Menu.Effects[0].Parameters[2].val)) {
@@ -328,8 +331,9 @@ int GapCounter = 0;
 		};
 
 		FastLED.show();
-		if (Change != 0) { //**7. Add this condition before end of while loop, to trigger rotary encoder change flag
-			PrintDisplay();	}//**7.
+		
+		RotaryChangeCheck();//**7. Add this before end of while loop, to trigger rotary encoder change flag
+
 		
 		delay(Menu.Effects[0].Parameters[1].val);
 	}
@@ -358,7 +362,7 @@ void DefineSnakeValues(int Length, int Brightness, int* Snake) {
 
 //magic function to calculate constant number. It is for cumulative multiply value from maximal brightness value_
 //of snake until end of length of snake based on its length
-//
+//Reason for this is to calculate snake pixels brightness values let transition looks smooth, because linear decrease of brightness values doesnt look good
 double CalculateFadeModifier(int NumOfPixels) {
 	if (NumOfPixels < 46) {
 		//Magic formula with bulgarian constants 
@@ -468,9 +472,7 @@ void BouncingSnakesLoop() {
 			}
 		}
 		FastLED.show();
-		if (Change != 0) {
-			PrintDisplay();
-		}
+		RotaryChangeCheck();
 		delay(Menu.Effects[2].Parameters[1].val);
 	}
 
@@ -551,9 +553,7 @@ void SparklesLoop() {
 		ChangeColorCounter = 0;
 	};
 	FastLED.show();
-	if (Change != 0) {
-		PrintDisplay();
-	}
+	RotaryChangeCheck();
 	delay(Menu.Effects[1].Parameters[1].val);
 	}
 
@@ -587,7 +587,7 @@ int GetColorPixelNum(CRGB np[]) {
 	return c;
 }
 
-//---------------------------------SpectrumVisualisator
+//---------------------------------Spectrum Vis
 
 
 #define Num_Bands 7
@@ -598,7 +598,7 @@ public:
 	int LowerFreq; //on 256 samle rate, 1 represents 25Hz
 	int UpperFreq; //on 256 samle rate, 1 represents 25Hz
 	int HSVColor;
-	double ValueMultiplier; //Some bands have all time lower values, for better I increased their value
+	double ValueMultiplier; //Some bands have all the time lower values, for better look I increased their value
 	int ActualValue;
 	void BandDataSet(int LowerFreq, int UpperFreq, int HSVColor, double ValueMultiplier) {
 		this->LowerFreq = LowerFreq;
@@ -615,12 +615,8 @@ public:
 };
 BandData Bands[Num_Bands];
 
-
-
 // https://github.com/kosme/arduinoFFT, in IDE, Sketch, Include Library, Manage Library, then search for FFT
 arduinoFFT FFT = arduinoFFT();
-
-
 
 #define SAMPLES 256             
 #define SAMPLING_FREQUENCY 5000 
@@ -774,9 +770,8 @@ void SpectrumVisualizerLoop() {
 		np.fadeToBlackBy(Menu.Effects[3].Parameters[6].val);
 		
 		Spectrum_ColorChangeCounter = (Spectrum_ColorChangeCounter >= 255) ? 0 : Spectrum_ColorChangeCounter + Menu.Effects[3].Parameters[1].val / SpeedDivider;
-		if (Change != 0) {
-			PrintDisplay();
-		}
+
+		RotaryChangeCheck();
 		delay(10); //Must be atleast 10 otherwise you will get reboots
 
 	}
@@ -789,10 +784,11 @@ void SpectrumVisualizerLoop() {
 
 void setup() {
 	SetMenu();
-	pinMode(RotaryCLK, INPUT_PULLUP);
-	pinMode(RotaryDT, INPUT_PULLUP);
-	pinMode(RotaryBTN, INPUT_PULLUP);
-	attachInterrupt(digitalPinToInterrupt(RotaryCLK), RotaryChange, FALLING);
+	//now it is set by library
+	//pinMode(RotaryCLK, INPUT_PULLUP);
+	//pinMode(RotaryDT, INPUT_PULLUP);
+	//pinMode(RotaryBTN, INPUT_PULLUP);
+	//attachInterrupt(digitalPinToInterrupt(RotaryCLK), RotaryChange, FALLING);
 	attachInterrupt(digitalPinToInterrupt(RotaryBTN), RotaryPush, FALLING);
 	FastLED.addLeds<NEOPIXEL, PIN>(np, MaxStripLength);
 	FastLED.setBrightness(MaxBrightness);
@@ -809,7 +805,7 @@ void setup() {
 	PrintDisplay();
 }
 
- 
+
 void loop() {
 	//**8. Add new case for your effect array number
 
@@ -829,36 +825,39 @@ void loop() {
 		SpectrumVisualizerLoop(); break; }
 	//case x:	//**9. Define new case for your effect. Thats all
 		   //SetNewEffectFunction();
-		   //NewEffectLoop(); in this function use: while (MenuPosition.CurrentEffect == x){ your code}
-		   // Add also to loop trigger for interrup flag : 	if (Change != 0) {PrintDisplay();} - see how is implemented in other effects
+		   //NewEffectLoop(); 
 	default:
 		break;
 	}
 	
 }
 
-void RotaryChange()
+
+void RotaryChangeCheck()
 {
-	bool StateA, StateB;
-
-	StateB = digitalRead(RotaryDT);
-	StateA = digitalRead(RotaryCLK);
-	if ((StateA == 0) && (StateB == 1))
-		Change = 1; //rotary up
-
-	else if
-		((StateA == 0) && (StateB == 0))
-		Change = -1; //rotary down
-
-	else {
+	Change = myEnc.read();
+	if (Change == 0){
 		return;
 	}
+	if (Change == 100){
+		Change = 2; // in old way 2 was button, it is like this complicated because at the end of project I changed library for encoder
+	}
+	//swap values -1 and 1 if you want reverse rotary step
+	else{
+		if (Change > 0)
+			Change = -1; //rotary up
 
+		else if
+			(Change < 0)
+			Change = 1; //rotary down
+}
+	
 	Serial.print("Rottary changed ");
 	Serial.println(Change);
+	PrintDisplay();
 }
 
 void RotaryPush() {
-	Change = 2;
+	myEnc.write(100);
 	Serial.println("Button");
 }
