@@ -6,7 +6,7 @@ Control predefined effects of your attached neopixel(ws2812b) led strip. To get 
 [![Youtube Video](http://img.youtube.com/vi/JeZSuh0Q6hs/0.jpg)](http://www.youtube.com/watch?v=JeZSuh0Q6hs "Youtube Video")
 
 ## Features
-- Power supply can be provided via any standard DC adapter like laptop charger with input rating 4-32V. 
+- Power supply can be provided via any standard DC adapter like laptop charger with output rating 4-32V. 
 - Configurable length of neopixel strip.
 - Predefined 4 effects including sound spectrum visualizer based on your audio input.
 - Control current effect and its properties with rotary encoder and LCD display.
@@ -18,7 +18,7 @@ I prepared shopping list for 2 aliexpress sellers to not overload your local pos
 Additionally to soldering iron, AC to DC adapter and neopixel strip you will need:
 
 Basic components - This components you need:
-- [Wemos D1 Mini ESP8266 board](http://www.aliexpress.com/item/32674463823.html).
+- [Wemos D1 Mini ESP8266 Development board](http://www.aliexpress.com/item/32674463823.html).
 - [DC-DC Step down converter with proper current rating](https://www.aliexpress.com/item/32821840536.html). Output DC must be adjustable to 5V.
 - [ST7735S TFT LCD Display module](http://www.aliexpress.com/item/2055099048.html).
 - [Rotary encoder](http://www.aliexpress.com/item/32224563961.html).
